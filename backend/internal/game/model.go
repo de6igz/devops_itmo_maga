@@ -8,6 +8,7 @@ type Game struct {
 	ReleaseYear int    `json:"releaseYear"`
 	Rating      int    `json:"rating"`
 	Status      string `json:"status"`
+	Description string `json:"description"`
 	ImagePath   string `json:"imagePath"`
 }
 
@@ -24,6 +25,7 @@ var SeedGames = []Game{
 		ReleaseYear: 2015,
 		Rating:      10,
 		Status:      "completed",
+		Description: "Глубокая сюжетная RPG в мрачном фэнтези-мире с сильными побочными квестами, исследованием открытого мира и запоминающимися персонажами.",
 		ImagePath:   "",
 	},
 	{
@@ -33,6 +35,7 @@ var SeedGames = []Game{
 		ReleaseYear: 2020,
 		Rating:      9,
 		Status:      "playing",
+		Description: "Динамичный рогалик про побег из подземного царства, где быстрые бои, стильный арт и постоянное развитие героя работают вместе.",
 		ImagePath:   "",
 	},
 	{
@@ -42,6 +45,7 @@ var SeedGames = []Game{
 		ReleaseYear: 2023,
 		Rating:      8,
 		Status:      "planned",
+		Description: "Психологический survival horror с густой атмосферой, кинематографичной подачей и мрачным расследованием в духе триллера.",
 		ImagePath:   "",
 	},
 }

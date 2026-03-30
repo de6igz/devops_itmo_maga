@@ -52,6 +52,7 @@ func (s *Store) initSchema() error {
 			release_year INTEGER NOT NULL,
 			rating INTEGER NOT NULL,
 			status TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
 			image_path TEXT NOT NULL DEFAULT ''
 		)
 	`)
@@ -59,10 +60,10 @@ func (s *Store) initSchema() error {
 		return err
 	}
 
-	return s.ensureImagePathColumn()
+	return s.ensureColumns()
 }
 
-func (s *Store) ensureImagePathColumn() error {
+func (s *Store) ensureColumns() error {
 	rows, err := s.db.Query(`PRAGMA table_info(games)`)
 	if err != nil {
 		return err
@@ -70,6 +71,7 @@ func (s *Store) ensureImagePathColumn() error {
 	defer rows.Close()
 
 	var hasImagePath bool
+	var hasDescription bool
 	for rows.Next() {
 		var (
 			cid        int
@@ -86,16 +88,26 @@ func (s *Store) ensureImagePathColumn() error {
 
 		if name == "image_path" {
 			hasImagePath = true
-			break
+		}
+
+		if name == "description" {
+			hasDescription = true
 		}
 	}
 
-	if hasImagePath {
-		return nil
+	if !hasImagePath {
+		if _, err := s.db.Exec(`ALTER TABLE games ADD COLUMN image_path TEXT NOT NULL DEFAULT ''`); err != nil {
+			return err
+		}
 	}
 
-	_, err = s.db.Exec(`ALTER TABLE games ADD COLUMN image_path TEXT NOT NULL DEFAULT ''`)
-	return err
+	if !hasDescription {
+		if _, err := s.db.Exec(`ALTER TABLE games ADD COLUMN description TEXT NOT NULL DEFAULT ''`); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *Store) seed() error {
@@ -119,9 +131,9 @@ func (s *Store) seed() error {
 
 func (s *Store) Create(entity game.Game) (game.Game, error) {
 	result, err := s.db.Exec(`
-		INSERT INTO games (title, genre, platform, release_year, rating, status, image_path)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, entity.Title, entity.Genre, entity.Platform, entity.ReleaseYear, entity.Rating, entity.Status, entity.ImagePath)
+		INSERT INTO games (title, genre, platform, release_year, rating, status, description, image_path)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, entity.Title, entity.Genre, entity.Platform, entity.ReleaseYear, entity.Rating, entity.Status, entity.Description, entity.ImagePath)
 	if err != nil {
 		return game.Game{}, err
 	}
@@ -136,7 +148,7 @@ func (s *Store) Create(entity game.Game) (game.Game, error) {
 
 func (s *Store) List(filters game.Filters) ([]game.Game, error) {
 	rows, err := s.db.Query(`
-		SELECT id, title, genre, platform, release_year, rating, status, image_path
+		SELECT id, title, genre, platform, release_year, rating, status, description, image_path
 		FROM games
 		WHERE (? = '' OR status = ?)
 		  AND (? = '' OR genre = ?)
@@ -158,6 +170,7 @@ func (s *Store) List(filters game.Filters) ([]game.Game, error) {
 			&entity.ReleaseYear,
 			&entity.Rating,
 			&entity.Status,
+			&entity.Description,
 			&entity.ImagePath,
 		); err != nil {
 			return nil, err
@@ -171,7 +184,7 @@ func (s *Store) List(filters game.Filters) ([]game.Game, error) {
 func (s *Store) GetByID(id int64) (game.Game, error) {
 	var entity game.Game
 	err := s.db.QueryRow(`
-		SELECT id, title, genre, platform, release_year, rating, status, image_path
+		SELECT id, title, genre, platform, release_year, rating, status, description, image_path
 		FROM games
 		WHERE id = ?
 	`, id).Scan(
@@ -182,6 +195,7 @@ func (s *Store) GetByID(id int64) (game.Game, error) {
 		&entity.ReleaseYear,
 		&entity.Rating,
 		&entity.Status,
+		&entity.Description,
 		&entity.ImagePath,
 	)
 	if err != nil {
@@ -197,9 +211,9 @@ func (s *Store) GetByID(id int64) (game.Game, error) {
 func (s *Store) Update(id int64, entity game.Game) (game.Game, error) {
 	result, err := s.db.Exec(`
 		UPDATE games
-		SET title = ?, genre = ?, platform = ?, release_year = ?, rating = ?, status = ?, image_path = ?
+		SET title = ?, genre = ?, platform = ?, release_year = ?, rating = ?, status = ?, description = ?, image_path = ?
 		WHERE id = ?
-	`, entity.Title, entity.Genre, entity.Platform, entity.ReleaseYear, entity.Rating, entity.Status, entity.ImagePath, id)
+	`, entity.Title, entity.Genre, entity.Platform, entity.ReleaseYear, entity.Rating, entity.Status, entity.Description, entity.ImagePath, id)
 	if err != nil {
 		return game.Game{}, err
 	}

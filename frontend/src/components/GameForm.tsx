@@ -8,7 +8,7 @@ interface GameFormProps {
   isEditing: boolean;
   isSubmitting: boolean;
   imagePreviewUrl: string;
-  onChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+  onChange: (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: (nextState?: GameFormData) => void;
@@ -100,6 +100,18 @@ function GameForm({
               </option>
             ))}
           </select>
+        </label>
+
+        <label>
+          Описание
+          <textarea
+            name="description"
+            placeholder="Кратко опишите игру для большой карточки и каталога."
+            value={formData.description}
+            onChange={onChange}
+            rows={4}
+            required
+          />
         </label>
 
         <label>

@@ -96,6 +96,7 @@ describe("App", () => {
           releaseYear: 2015,
           rating: 10,
           status: "completed",
+          description: "Большая RPG с открытым миром и сильной сюжетной линией.",
           imagePath: "/blob/witcher.png",
         },
         {
@@ -106,6 +107,7 @@ describe("App", () => {
           releaseYear: 2020,
           rating: 9,
           status: "playing",
+          description: "Быстрый рогалик про побег из подземного царства.",
           imagePath: "/blob/hades.png",
         },
       ]),
@@ -144,6 +146,7 @@ describe("App", () => {
     await user.type(screen.getByLabelText("Год выпуска"), "2018");
     await user.type(screen.getByLabelText("Оценка"), "9");
     await user.selectOptions(screen.getByLabelText("Статус игры"), "completed");
+    await user.type(screen.getByPlaceholderText("Кратко опишите игру для большой карточки и каталога."), "Точная и эмоциональная платформенная игра про преодоление.");
     await user.click(screen.getByRole("button", { name: "Добавить игру" }));
 
     expect(await screen.findAllByText("Celeste")).toHaveLength(2);
@@ -174,5 +177,6 @@ describe("App", () => {
     expect(within(detailsPanel).getByRole("heading", { name: "The Witcher 3" })).toBeInTheDocument();
     expect(within(detailsPanel).getByText("completed")).toBeInTheDocument();
     expect(within(detailsPanel).getByText("PC")).toBeInTheDocument();
+    expect(within(detailsPanel).getByText("Большая RPG с открытым миром и сильной сюжетной линией.")).toBeInTheDocument();
   });
 });

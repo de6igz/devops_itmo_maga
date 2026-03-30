@@ -38,6 +38,7 @@ export function formDataToPayload(formData: GameFormData): GamePayload {
     releaseYear: Number(formData.releaseYear),
     rating: Number(formData.rating),
     status: formData.status,
+    description: formData.description,
     imagePath: formData.imagePath,
   };
 }

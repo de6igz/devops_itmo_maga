@@ -47,6 +47,10 @@ func Validate(game Game) error {
 		return ValidationError{Message: "поле status должно быть одним из: planned, playing, completed"}
 	}
 
+	if game.Description == "" {
+		return ValidationError{Message: "поле description обязательно"}
+	}
+
 	if game.ImagePath != "" && !strings.HasPrefix(filepath.ToSlash(game.ImagePath), "/blob/") {
 		return ValidationError{Message: "поле imagePath должно содержать путь внутри /blob/"}
 	}

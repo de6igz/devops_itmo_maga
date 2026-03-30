@@ -13,5 +13,6 @@ export const DEFAULT_FORM_STATE: GameFormData = {
   releaseYear: "",
   rating: "",
   status: "planned",
+  description: "",
   imagePath: "",
 };

@@ -89,6 +89,7 @@ func TestCreateGame(t *testing.T) {
 		"releaseYear": 2020,
 		"rating":      8,
 		"status":      "playing",
+		"description": "Футуристическая RPG с открытым городом, сюжетом и вариативной прокачкой.",
 	})
 
 	if response.Code != http.StatusCreated {
@@ -107,6 +108,7 @@ func TestGetGames(t *testing.T) {
 		"releaseYear": 2018,
 		"rating":      9,
 		"status":      "completed",
+		"description": "Точная платформенная игра про преодоление и внутренний рост.",
 	})
 
 	response := performRequest(t, app, http.MethodGet, "/api/games", nil)
@@ -135,6 +137,7 @@ func TestUpdateGame(t *testing.T) {
 		"releaseYear": 2019,
 		"rating":      8,
 		"status":      "planned",
+		"description": "Мистический action с аномалиями, перестрелками и исследованием Бюро.",
 	})
 
 	response := performRequest(t, app, http.MethodPut, "/api/games/1", map[string]any{
@@ -144,6 +147,7 @@ func TestUpdateGame(t *testing.T) {
 		"releaseYear": 2021,
 		"rating":      9,
 		"status":      "completed",
+		"description": "Полное издание атмосферного action с дополнениями и необычной боевой системой.",
 	})
 
 	if response.Code != http.StatusOK {
@@ -162,6 +166,7 @@ func TestDeleteGame(t *testing.T) {
 		"releaseYear": 2011,
 		"rating":      10,
 		"status":      "completed",
+		"description": "Головоломка от первого лица с порталами, кооперативом и ярким юмором.",
 	})
 
 	response := performRequest(t, app, http.MethodDelete, "/api/games/1", nil)
@@ -181,6 +186,7 @@ func TestInvalidGameData(t *testing.T) {
 		"releaseYear": 1900,
 		"rating":      20,
 		"status":      "unknown",
+		"description": "",
 	})
 
 	if response.Code != http.StatusBadRequest {

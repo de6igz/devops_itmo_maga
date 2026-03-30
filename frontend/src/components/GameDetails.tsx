@@ -44,10 +44,7 @@ function GameDetails({ game, relatedGames, loading, onOpen, onClose }: GameDetai
                 <span>{game.status}</span>
                 <span>{game.releaseYear}</span>
               </div>
-              <p className="showcase-description">
-                Жанр: {game.genre}. Это главная карточка каталога с крупной обложкой, статусом и быстрой
-                навигацией для демонстрации на защите.
-              </p>
+              <p className="showcase-description">{game.description}</p>
               <div className="showcase-actions">
                 <button type="button" className="primary-cta" onClick={onClose}>
                   Скрыть фокус

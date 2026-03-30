@@ -91,7 +91,7 @@ function App() {
     }
   }
 
-  function handleInputChange(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function handleInputChange(event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     const { name, value } = event.target;
     setFormData((currentState) => ({
       ...currentState,
@@ -137,6 +137,7 @@ function App() {
       releaseYear: String(game.releaseYear),
       rating: String(game.rating),
       status: game.status,
+      description: game.description,
       imagePath: game.imagePath,
     });
     setImagePreviewUrl(game.imagePath ? resolveAssetUrl(game.imagePath) : "");
@@ -224,17 +225,6 @@ function App() {
           <p className="eyebrow">Game Spotlight</p>
           <h1>Каталог видеоигр</h1>
         </div>
-        <div className="topbar-actions">
-          <button type="button" className="ghost-button">
-            Search
-          </button>
-          <button type="button" className="ghost-button">
-            Wishlist
-          </button>
-          <button type="button" className="primary-cta">
-            Signup / Login
-          </button>
-        </div>
       </header>
 
       {errorMessage && <div className="error-banner">{errorMessage}</div>}
@@ -264,17 +254,6 @@ function App() {
                 </option>
               ))}
             </select>
-          </label>
-
-          <label>
-            Жанр
-            <input
-              aria-label="Фильтр по жанру"
-              name="genre"
-              placeholder="Например, RPG"
-              value={filters.genre}
-              onChange={handleFilterChange}
-            />
           </label>
         </div>
       </section>

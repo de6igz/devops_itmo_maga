@@ -8,6 +8,7 @@ export interface Game {
   releaseYear: number;
   rating: number;
   status: GameStatus;
+  description: string;
   imagePath: string;
 }
 
@@ -18,5 +19,6 @@ export interface GameFormData {
   releaseYear: string;
   rating: string;
   status: GameStatus;
+  description: string;
   imagePath: string;
 }
