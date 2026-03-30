@@ -1,0 +1,9 @@
+backend/node_modules
+backend/.cache
+backend/blob/*
+!backend/blob/.gitkeep
+backend/data/*.db
+backend/data/*.sqlite
+frontend/node_modules
+frontend/dist
+.DS_Store
