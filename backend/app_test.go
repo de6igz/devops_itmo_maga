@@ -4,29 +4,29 @@ import (
 	"bytes"
 	"encoding/json"
 	"game-catalog-backend/internal/game"
+	"game-catalog-backend/internal/httpapi"
+	"game-catalog-backend/internal/media"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+
+	"github.com/golang/mock/gomock"
 )
 
-func setupTestApp(t *testing.T) (*App, func()) {
+func setupTestServer(t *testing.T, repository game.Repository) http.Handler {
 	t.Helper()
 
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "test.db")
-	blobDir := filepath.Join(tempDir, "blob")
-
-	app, err := newAppWithBlobDir(dbPath, blobDir, false)
+	blobDir := filepath.Join(t.TempDir(), "blob")
+	uploader, err := media.NewUploader(blobDir)
 	if err != nil {
-		t.Fatalf("failed to create test app: %v", err)
+		t.Fatalf("failed to create uploader: %v", err)
 	}
 
-	return app, func() {
-		_ = app.Close()
-	}
+	service := game.NewService(repository)
+	return httpapi.NewServer(service, uploader, blobDir)
 }
 
 func performMultipartRequest(t *testing.T, handler http.Handler, method, path string, fieldName, fileName string, content []byte) *httptest.ResponseRecorder {
@@ -79,10 +79,27 @@ func performRequest(t *testing.T, handler http.Handler, method, path string, bod
 }
 
 func TestCreateGame(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
+	controller := gomock.NewController(t)
+	defer controller.Finish()
 
-	response := performRequest(t, app, http.MethodPost, "/api/games", map[string]any{
+	repository := NewMockGameRepository(controller)
+	server := setupTestServer(t, repository)
+
+	repository.EXPECT().
+		Create(gomock.AssignableToTypeOf(game.Game{})).
+		DoAndReturn(func(entity game.Game) (game.Game, error) {
+			if entity.Title != "Cyberpunk 2077" {
+				t.Fatalf("unexpected title: %s", entity.Title)
+			}
+			if entity.Description == "" {
+				t.Fatalf("description should not be empty")
+			}
+
+			entity.ID = 1
+			return entity, nil
+		})
+
+	response := performRequest(t, server, http.MethodPost, "/api/games", map[string]any{
 		"title":       "Cyberpunk 2077",
 		"genre":       "RPG",
 		"platform":    "PC",
@@ -98,20 +115,28 @@ func TestCreateGame(t *testing.T) {
 }
 
 func TestGetGames(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
+	controller := gomock.NewController(t)
+	defer controller.Finish()
 
-	performRequest(t, app, http.MethodPost, "/api/games", map[string]any{
-		"title":       "Celeste",
-		"genre":       "Platformer",
-		"platform":    "Switch",
-		"releaseYear": 2018,
-		"rating":      9,
-		"status":      "completed",
-		"description": "Точная платформенная игра про преодоление и внутренний рост.",
-	})
+	repository := NewMockGameRepository(controller)
+	server := setupTestServer(t, repository)
 
-	response := performRequest(t, app, http.MethodGet, "/api/games", nil)
+	repository.EXPECT().
+		List(game.Filters{}).
+		Return([]game.Game{
+			{
+				ID:          1,
+				Title:       "Celeste",
+				Genre:       "Platformer",
+				Platform:    "Switch",
+				ReleaseYear: 2018,
+				Rating:      9,
+				Status:      "completed",
+				Description: "Точная платформенная игра про преодоление и внутренний рост.",
+			},
+		}, nil)
+
+	response := performRequest(t, server, http.MethodGet, "/api/games", nil)
 	if response.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", response.Code)
 	}
@@ -127,20 +152,27 @@ func TestGetGames(t *testing.T) {
 }
 
 func TestUpdateGame(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
+	controller := gomock.NewController(t)
+	defer controller.Finish()
 
-	performRequest(t, app, http.MethodPost, "/api/games", map[string]any{
-		"title":       "Control",
-		"genre":       "Action",
-		"platform":    "PC",
-		"releaseYear": 2019,
-		"rating":      8,
-		"status":      "planned",
-		"description": "Мистический action с аномалиями, перестрелками и исследованием Бюро.",
-	})
+	repository := NewMockGameRepository(controller)
+	server := setupTestServer(t, repository)
 
-	response := performRequest(t, app, http.MethodPut, "/api/games/1", map[string]any{
+	repository.EXPECT().
+		Update(int64(1), gomock.AssignableToTypeOf(game.Game{})).
+		DoAndReturn(func(id int64, entity game.Game) (game.Game, error) {
+			if id != 1 {
+				t.Fatalf("unexpected id: %d", id)
+			}
+			if entity.Title != "Control Ultimate Edition" {
+				t.Fatalf("unexpected title: %s", entity.Title)
+			}
+
+			entity.ID = id
+			return entity, nil
+		})
+
+	response := performRequest(t, server, http.MethodPut, "/api/games/1", map[string]any{
 		"title":       "Control Ultimate Edition",
 		"genre":       "Action",
 		"platform":    "PC",
@@ -156,30 +188,30 @@ func TestUpdateGame(t *testing.T) {
 }
 
 func TestDeleteGame(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
+	controller := gomock.NewController(t)
+	defer controller.Finish()
 
-	performRequest(t, app, http.MethodPost, "/api/games", map[string]any{
-		"title":       "Portal 2",
-		"genre":       "Puzzle",
-		"platform":    "PC",
-		"releaseYear": 2011,
-		"rating":      10,
-		"status":      "completed",
-		"description": "Головоломка от первого лица с порталами, кооперативом и ярким юмором.",
-	})
+	repository := NewMockGameRepository(controller)
+	server := setupTestServer(t, repository)
 
-	response := performRequest(t, app, http.MethodDelete, "/api/games/1", nil)
+	repository.EXPECT().
+		Delete(int64(1)).
+		Return(nil)
+
+	response := performRequest(t, server, http.MethodDelete, "/api/games/1", nil)
 	if response.Code != http.StatusNoContent {
 		t.Fatalf("expected status 204, got %d", response.Code)
 	}
 }
 
 func TestInvalidGameData(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
+	controller := gomock.NewController(t)
+	defer controller.Finish()
 
-	response := performRequest(t, app, http.MethodPost, "/api/games", map[string]any{
+	repository := NewMockGameRepository(controller)
+	server := setupTestServer(t, repository)
+
+	response := performRequest(t, server, http.MethodPost, "/api/games", map[string]any{
 		"title":       "",
 		"genre":       "RPG",
 		"platform":    "PC",
@@ -195,12 +227,15 @@ func TestInvalidGameData(t *testing.T) {
 }
 
 func TestUploadImage(t *testing.T) {
-	app, cleanup := setupTestApp(t)
-	defer cleanup()
+	controller := gomock.NewController(t)
+	defer controller.Finish()
+
+	repository := NewMockGameRepository(controller)
+	server := setupTestServer(t, repository)
 
 	response := performMultipartRequest(
 		t,
-		app,
+		server,
 		http.MethodPost,
 		"/api/uploads/image",
 		"image",

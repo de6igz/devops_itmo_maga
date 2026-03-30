@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"os"
-	"path/filepath"
 )
 
 func main() {
@@ -12,12 +11,12 @@ func main() {
 		port = "3000"
 	}
 
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		dbPath = filepath.Join("data", "games.db")
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		databaseURL = "postgres://postgres:postgres@localhost:5432/game_catalog?sslmode=disable"
 	}
 
-	app, err := newApp(dbPath, true)
+	app, err := newApp(databaseURL, true)
 	if err != nil {
 		log.Fatalf("failed to build application: %v", err)
 	}

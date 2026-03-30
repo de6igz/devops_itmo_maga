@@ -4,7 +4,7 @@ import (
 	"game-catalog-backend/internal/game"
 	"game-catalog-backend/internal/httpapi"
 	"game-catalog-backend/internal/media"
-	sqlitestore "game-catalog-backend/internal/storage/sqlite"
+	postgresstore "game-catalog-backend/internal/storage/postgres"
 	"net/http"
 	"path/filepath"
 
@@ -13,15 +13,15 @@ import (
 
 type App struct {
 	Server *echo.Echo
-	store  *sqlitestore.Store
+	store  *postgresstore.Store
 }
 
-func newApp(dbPath string, seedDemoData bool) (*App, error) {
-	return newAppWithBlobDir(dbPath, "blob", seedDemoData)
+func newApp(databaseURL string, seedDemoData bool) (*App, error) {
+	return newAppWithBlobDir(databaseURL, "blob", seedDemoData)
 }
 
-func newAppWithBlobDir(dbPath, blobDir string, seedDemoData bool) (*App, error) {
-	store, err := sqlitestore.New(dbPath, seedDemoData)
+func newAppWithBlobDir(databaseURL, blobDir string, seedDemoData bool) (*App, error) {
+	store, err := postgresstore.New(databaseURL, seedDemoData)
 	if err != nil {
 		return nil, err
 	}

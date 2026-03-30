@@ -13,9 +13,9 @@
 
 ## Стек технологий
 
-- Backend: Go, Echo, SQLite
+- Backend: Go, Echo, PostgreSQL
 - Frontend: React, TypeScript, Vite
-- Backend tests: Go `testing`, `httptest`
+- Backend tests: Go `testing`, `httptest`, `gomock`
 - Frontend tests: Vitest, React Testing Library
 - CI: GitHub Actions
 
@@ -27,12 +27,12 @@
 ├── backend
 │   ├── app.go
 │   ├── app_test.go
-│   ├── data
 │   ├── go.mod
 │   ├── internal
 │   │   ├── game
 │   │   ├── httpapi
-│   │   └── storage/sqlite
+│   │   ├── media
+│   │   └── storage/postgres
 │   ├── main.go
 │   └── go.sum
 ├── frontend
@@ -67,14 +67,30 @@
 - `releaseYear` — год выпуска
 - `rating` — оценка от 1 до 10
 - `status` — `planned`, `playing`, `completed`
+- `description` — краткое описание игры
 - `imagePath` — путь к загруженной обложке внутри `/blob/...`
 
 ## Запуск backend
 
 Требование: Go 1.26.1 или новее.
 
+Требование по БД: запущенный PostgreSQL. По умолчанию backend использует строку подключения:
+
+```text
+postgres://postgres:postgres@localhost:5432/game_catalog?sslmode=disable
+```
+
+Если нужно, можно передать свою строку через переменную окружения `DATABASE_URL`.
+
+Для локального запуска удобно заранее создать базу:
+
+```bash
+createdb game_catalog
+```
+
 ```bash
 cd backend
+export DATABASE_URL="postgres://postgres:postgres@localhost:5432/game_catalog?sslmode=disable"
 go mod tidy
 go run .
 ```
@@ -83,7 +99,6 @@ Backend стартует на `http://localhost:3000`.
 
 При первом запуске:
 
-- автоматически создаётся SQLite-база в `backend/data/games.db`
 - автоматически создаётся таблица `games`
 - автоматически добавляются несколько демонстрационных игр
 - автоматически используется папка `backend/blob` для обложек игр
@@ -143,12 +158,18 @@ Pipeline запускается автоматически при:
 
 В CI есть 4 отдельные job:
 
-- `backend-build` — загрузка Go-модулей и сборка backend
-- `backend-test` — запуск backend-тестов на Go
-- `frontend-build` — сборка frontend
+- `backend-build` — сборка backend
+- `backend-test` — запуск backend-тестов с `gomock`, без подключения к БД
 - `frontend-test` — запуск frontend-тестов
+- `frontend-build` — сборка frontend
 
-Все job выполняются отдельно для backend и frontend.
+Job идут строго последовательно, без параллельного выполнения:
+
+```text
+backend-build -> backend-test -> frontend-test -> frontend-build
+```
+
+Если предыдущий этап падает, следующий не запускается.
 
 ## REST API
 
@@ -165,7 +186,9 @@ Pipeline запускается автоматически при:
   "platform": "PC",
   "releaseYear": 2020,
   "rating": 8,
-  "status": "playing"
+  "status": "playing",
+  "description": "Футуристическая RPG с открытым городом и вариативной прокачкой.",
+  "imagePath": "/blob/cyberpunk-cover.jpg"
 }
 ```
 
@@ -180,7 +203,9 @@ curl -X POST http://localhost:3000/api/games \
     "platform": "PC",
     "releaseYear": 2020,
     "rating": 8,
-    "status": "playing"
+    "status": "playing",
+    "description": "Футуристическая RPG с открытым городом и вариативной прокачкой.",
+    "imagePath": "/blob/cyberpunk-cover.jpg"
   }'
 ```
 
@@ -240,7 +265,9 @@ curl -X PUT http://localhost:3000/api/games/1 \
     "platform": "PC",
     "releaseYear": 2020,
     "rating": 9,
-    "status": "completed"
+    "status": "completed",
+    "description": "Обновлённая версия игры после прохождения основных сюжетных линий.",
+    "imagePath": "/blob/cyberpunk-cover.jpg"
   }'
 ```
 

@@ -1,40 +1,39 @@
-package sqlite
+package postgres
 
 import (
 	"database/sql"
 	"errors"
-	"os"
-	"path/filepath"
 
 	"game-catalog-backend/internal/game"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"
 )
 
 type Store struct {
 	db *sql.DB
 }
 
-func New(dbPath string, seedDemoData bool) (*Store, error) {
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+func New(databaseURL string, seedDemoData bool) (*Store, error) {
+	db, err := sql.Open("postgres", databaseURL)
+	if err != nil {
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
 		return nil, err
 	}
 
 	store := &Store{db: db}
 
 	if err := store.initSchema(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 
 	if seedDemoData {
 		if err := store.seed(); err != nil {
-			db.Close()
+			_ = db.Close()
 			return nil, err
 		}
 	}
@@ -45,7 +44,7 @@ func New(dbPath string, seedDemoData bool) (*Store, error) {
 func (s *Store) initSchema() error {
 	_, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS games (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id BIGSERIAL PRIMARY KEY,
 			title TEXT NOT NULL,
 			genre TEXT NOT NULL,
 			platform TEXT NOT NULL,
@@ -64,45 +63,40 @@ func (s *Store) initSchema() error {
 }
 
 func (s *Store) ensureColumns() error {
-	rows, err := s.db.Query(`PRAGMA table_info(games)`)
+	requiredColumns := map[string]string{
+		"description": "ALTER TABLE games ADD COLUMN description TEXT NOT NULL DEFAULT ''",
+		"image_path":  "ALTER TABLE games ADD COLUMN image_path TEXT NOT NULL DEFAULT ''",
+	}
+
+	rows, err := s.db.Query(`
+		SELECT column_name
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'games'
+	`)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 
-	var hasImagePath bool
-	var hasDescription bool
+	existingColumns := map[string]bool{}
 	for rows.Next() {
-		var (
-			cid        int
-			name       string
-			columnType string
-			notNull    int
-			defaultVal sql.NullString
-			primaryKey int
-		)
-
-		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultVal, &primaryKey); err != nil {
+		var columnName string
+		if err := rows.Scan(&columnName); err != nil {
 			return err
 		}
-
-		if name == "image_path" {
-			hasImagePath = true
-		}
-
-		if name == "description" {
-			hasDescription = true
-		}
+		existingColumns[columnName] = true
 	}
 
-	if !hasImagePath {
-		if _, err := s.db.Exec(`ALTER TABLE games ADD COLUMN image_path TEXT NOT NULL DEFAULT ''`); err != nil {
-			return err
-		}
+	if err := rows.Err(); err != nil {
+		return err
 	}
 
-	if !hasDescription {
-		if _, err := s.db.Exec(`ALTER TABLE games ADD COLUMN description TEXT NOT NULL DEFAULT ''`); err != nil {
+	for columnName, statement := range requiredColumns {
+		if existingColumns[columnName] {
+			continue
+		}
+
+		if _, err := s.db.Exec(statement); err != nil {
 			return err
 		}
 	}
@@ -130,30 +124,37 @@ func (s *Store) seed() error {
 }
 
 func (s *Store) Create(entity game.Game) (game.Game, error) {
-	result, err := s.db.Exec(`
+	var created game.Game
+	err := s.db.QueryRow(`
 		INSERT INTO games (title, genre, platform, release_year, rating, status, description, image_path)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, entity.Title, entity.Genre, entity.Platform, entity.ReleaseYear, entity.Rating, entity.Status, entity.Description, entity.ImagePath)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, title, genre, platform, release_year, rating, status, description, image_path
+	`, entity.Title, entity.Genre, entity.Platform, entity.ReleaseYear, entity.Rating, entity.Status, entity.Description, entity.ImagePath).Scan(
+		&created.ID,
+		&created.Title,
+		&created.Genre,
+		&created.Platform,
+		&created.ReleaseYear,
+		&created.Rating,
+		&created.Status,
+		&created.Description,
+		&created.ImagePath,
+	)
 	if err != nil {
 		return game.Game{}, err
 	}
 
-	id, err := result.LastInsertId()
-	if err != nil {
-		return game.Game{}, err
-	}
-
-	return s.GetByID(id)
+	return created, nil
 }
 
 func (s *Store) List(filters game.Filters) ([]game.Game, error) {
 	rows, err := s.db.Query(`
 		SELECT id, title, genre, platform, release_year, rating, status, description, image_path
 		FROM games
-		WHERE (? = '' OR status = ?)
-		  AND (? = '' OR genre = ?)
+		WHERE ($1 = '' OR status = $1)
+		  AND ($2 = '' OR genre = $2)
 		ORDER BY id DESC
-	`, filters.Status, filters.Status, filters.Genre, filters.Genre)
+	`, filters.Status, filters.Genre)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +187,7 @@ func (s *Store) GetByID(id int64) (game.Game, error) {
 	err := s.db.QueryRow(`
 		SELECT id, title, genre, platform, release_year, rating, status, description, image_path
 		FROM games
-		WHERE id = ?
+		WHERE id = $1
 	`, id).Scan(
 		&entity.ID,
 		&entity.Title,
@@ -209,29 +210,35 @@ func (s *Store) GetByID(id int64) (game.Game, error) {
 }
 
 func (s *Store) Update(id int64, entity game.Game) (game.Game, error) {
-	result, err := s.db.Exec(`
+	var updated game.Game
+	err := s.db.QueryRow(`
 		UPDATE games
-		SET title = ?, genre = ?, platform = ?, release_year = ?, rating = ?, status = ?, description = ?, image_path = ?
-		WHERE id = ?
-	`, entity.Title, entity.Genre, entity.Platform, entity.ReleaseYear, entity.Rating, entity.Status, entity.Description, entity.ImagePath, id)
+		SET title = $1, genre = $2, platform = $3, release_year = $4, rating = $5, status = $6, description = $7, image_path = $8
+		WHERE id = $9
+		RETURNING id, title, genre, platform, release_year, rating, status, description, image_path
+	`, entity.Title, entity.Genre, entity.Platform, entity.ReleaseYear, entity.Rating, entity.Status, entity.Description, entity.ImagePath, id).Scan(
+		&updated.ID,
+		&updated.Title,
+		&updated.Genre,
+		&updated.Platform,
+		&updated.ReleaseYear,
+		&updated.Rating,
+		&updated.Status,
+		&updated.Description,
+		&updated.ImagePath,
+	)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return game.Game{}, game.ErrNotFound
+		}
 		return game.Game{}, err
 	}
 
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return game.Game{}, err
-	}
-
-	if affected == 0 {
-		return game.Game{}, game.ErrNotFound
-	}
-
-	return s.GetByID(id)
+	return updated, nil
 }
 
 func (s *Store) Delete(id int64) error {
-	result, err := s.db.Exec(`DELETE FROM games WHERE id = ?`, id)
+	result, err := s.db.Exec(`DELETE FROM games WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
