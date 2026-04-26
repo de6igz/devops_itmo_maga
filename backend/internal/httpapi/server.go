@@ -27,6 +27,8 @@ func NewServer(service GameService, uploader ImageUploader, blobDir string) *ech
 	server.HideBanner = true
 	server.HidePort = true
 	server.Use(middleware.Recover())
+	registry, metricsMiddleware := newMetrics()
+	server.Use(metricsMiddleware)
 
 	handler := &Handler{service: service, uploader: uploader}
 	api := server.Group("/api")
@@ -38,6 +40,7 @@ func NewServer(service GameService, uploader ImageUploader, blobDir string) *ech
 	api.PUT("/games/:id", handler.updateGame)
 	api.DELETE("/games/:id", handler.deleteGame)
 	api.POST("/uploads/image", handler.uploadImage)
+	api.GET("/load/cpu", handler.cpuLoad)
 
 	server.Static("/blob", blobDir)
 
@@ -53,6 +56,7 @@ func NewServer(service GameService, uploader ImageUploader, blobDir string) *ech
 	server.GET("/", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
+	server.GET("/metrics", metricsHandler(registry))
 
 	return server
 }

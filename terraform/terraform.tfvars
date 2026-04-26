@@ -1,0 +1,10 @@
+twc_token           = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCIsImtpZCI6IjFrYnhacFJNQGJSI0tSbE1xS1lqIn0.eyJ1c2VyIjoiamkyMjA2OCIsInR5cGUiOiJhcGlfa2V5IiwiYXBpX2tleV9pZCI6ImUxOTA0NWQxLTVlODEtNDA1NC1iOGM2LWRhOTNkYzA1NTE3ZSIsImlhdCI6MTc3NTkzMDMxOX0.NJNeWMbtFIADIh-OhGIwSPbNSH6Nd7oR5vki5z08rasRQFvDowCTd3wZFeo6Si19RT497YPzUmzJfV0cIeQ44-UnYzKYp4Yrn7lV4whIxv03VEHdM7YFSAnZ6txiRpf53kLkmL7z741k1iWvFIhbIynm9-HFlNOy9rg3_3EdbLBZsz3jUsrNzNq-Mz1QUpWJSsBEHCz5_MTwxRS3PBRlP1xNHnqAEvKTAVVUJsogg8E7axNBpwCTLFgM1vH1C7uJBEV1pn6wwfJ7pqwAKSTOPQU-jEDqyFB27-UM0N7nSU7YyfXqBRYrDRlKffo8re01VhTeqkKZI6QKUKvblm6B91w_XVRklDKPH_0KEP0utYSfIarsj2GEE-PfI6M8BBM1QFw3HpjZ8Vi4HBK0YHxMc3YYzJLYV1ZZ04dbzycpRcm9Voosfq0ehnp5vxCMCNQwwrQM-pcCiFDZwVJ8eVTVeVgv31hg4cVfoVXsv17fIoQ3MyQB3yaYa24FnVnbar34"
+server_name         = "lab2-server"
+location            = "ru-1"
+preset_type         = "premium"
+os_name             = "ubuntu"
+os_version          = "20.04"
+cpu                 = 1
+ram                 = 1024
+disk                = 15360
+ssh_public_key_path = "~/.ssh/id_rsa.pub"

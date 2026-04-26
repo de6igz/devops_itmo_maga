@@ -26,7 +26,7 @@ func New(databaseURL string, seedDemoData bool) (*Store, error) {
 
 	store := &Store{db: db}
 
-	if err := store.initSchema(); err != nil {
+	if err := store.runMigrations(); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -39,69 +39,6 @@ func New(databaseURL string, seedDemoData bool) (*Store, error) {
 	}
 
 	return store, nil
-}
-
-func (s *Store) initSchema() error {
-	_, err := s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS games (
-			id BIGSERIAL PRIMARY KEY,
-			title TEXT NOT NULL,
-			genre TEXT NOT NULL,
-			platform TEXT NOT NULL,
-			release_year INTEGER NOT NULL,
-			rating INTEGER NOT NULL,
-			status TEXT NOT NULL,
-			description TEXT NOT NULL DEFAULT '',
-			image_path TEXT NOT NULL DEFAULT ''
-		)
-	`)
-	if err != nil {
-		return err
-	}
-
-	return s.ensureColumns()
-}
-
-func (s *Store) ensureColumns() error {
-	requiredColumns := map[string]string{
-		"description": "ALTER TABLE games ADD COLUMN description TEXT NOT NULL DEFAULT ''",
-		"image_path":  "ALTER TABLE games ADD COLUMN image_path TEXT NOT NULL DEFAULT ''",
-	}
-
-	rows, err := s.db.Query(`
-		SELECT column_name
-		FROM information_schema.columns
-		WHERE table_schema = 'public' AND table_name = 'games'
-	`)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	existingColumns := map[string]bool{}
-	for rows.Next() {
-		var columnName string
-		if err := rows.Scan(&columnName); err != nil {
-			return err
-		}
-		existingColumns[columnName] = true
-	}
-
-	if err := rows.Err(); err != nil {
-		return err
-	}
-
-	for columnName, statement := range requiredColumns {
-		if existingColumns[columnName] {
-			continue
-		}
-
-		if _, err := s.db.Exec(statement); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (s *Store) seed() error {

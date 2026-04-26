@@ -24,19 +24,25 @@
 ```text
 .
 ├── .github/workflows/ci.yml
+├── docker-compose.yml
 ├── backend
 │   ├── app.go
 │   ├── app_test.go
+│   ├── Dockerfile
 │   ├── go.mod
 │   ├── internal
 │   │   ├── game
 │   │   ├── httpapi
 │   │   ├── media
 │   │   └── storage/postgres
+│   │       └── migrations
 │   ├── main.go
 │   └── go.sum
 ├── frontend
+│   ├── Dockerfile
 │   ├── index.html
+│   ├── nginx
+│   │   └── default.conf
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── src
@@ -82,10 +88,10 @@ postgres://postgres:postgres@localhost:5432/game_catalog?sslmode=disable
 
 Если нужно, можно передать свою строку через переменную окружения `DATABASE_URL`.
 
-Для локального запуска удобно заранее создать базу:
+Для локального запуска PostgreSQL можно поднять через Docker Compose из корня проекта:
 
 ```bash
-createdb game_catalog
+docker compose up -d postgres
 ```
 
 ```bash
@@ -99,7 +105,7 @@ Backend стартует на `http://localhost:3000`.
 
 При первом запуске:
 
-- автоматически создаётся таблица `games`
+- автоматически применяются SQL-миграции из `backend/internal/storage/postgres/migrations`
 - автоматически добавляются несколько демонстрационных игр
 - автоматически используется папка `backend/blob` для обложек игр
 
@@ -109,6 +115,202 @@ Backend стартует на `http://localhost:3000`.
 go run .
 go build ./...
 go test ./...
+```
+
+## Запуск через Docker Compose
+
+Чтобы поднять сразу PostgreSQL, backend и frontend:
+
+```bash
+docker compose up --build
+```
+
+После старта сервисы будут доступны по адресам:
+
+- frontend: `http://localhost:5173`
+- backend: `http://localhost:3000`
+- postgres: `localhost:5432`
+
+Внутри Docker Compose frontend проксирует запросы `/api/*` и `/blob/*` в сервис `backend`, поэтому отдельный `VITE_API_URL` для контейнерного запуска не нужен.
+
+## Запуск в minikube
+
+Требования: установлены `minikube`, `kubectl` и Docker.
+
+1. Запустить minikube:
+
+```bash
+minikube start -p minikube
+kubectl config use-context minikube
+```
+
+Если context `minikube` не появился, обновить его можно командой:
+
+```bash
+minikube update-context -p minikube
+kubectl config use-context minikube
+```
+
+2. Собрать образы backend и frontend локальным Docker:
+
+```bash
+docker build -t game-catalog-backend:local ./backend
+docker build -t game-catalog-frontend:local ./frontend
+```
+
+3. Загрузить локальные образы в minikube:
+
+```bash
+minikube image load game-catalog-backend:local
+minikube image load game-catalog-frontend:local
+```
+
+4. Применить Kubernetes-манифесты:
+
+```bash
+kubectl apply -k k8s
+```
+
+5. Дождаться запуска всех deployment:
+
+```bash
+kubectl rollout status deployment/postgres -n game-catalog
+kubectl rollout status deployment/backend -n game-catalog
+kubectl rollout status deployment/frontend -n game-catalog
+```
+
+6. Открыть frontend:
+
+```bash
+minikube service frontend -n game-catalog
+```
+
+В Kubernetes frontend, как и в Docker Compose, проксирует `/api/*` и `/blob/*` на внутренний сервис `backend:3000`, поэтому отдельный внешний backend URL не нужен.
+
+### Горизонтальное масштабирование backend
+
+Для backend настроен `HorizontalPodAutoscaler`: Kubernetes держит минимум 1 pod и может поднять до 5 pod'ов, если средняя нагрузка CPU станет выше 15% от `resources.requests.cpu`.
+
+В `backend` задано:
+
+```yaml
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+```
+
+Цель HPA `averageUtilization: 15` означает: если backend в среднем потребляет больше 15% от `100m`, то есть больше примерно `15m` CPU на pod, Kubernetes начнет добавлять pod'ы.
+
+Для minikube нужно включить Metrics Server:
+
+```bash
+minikube addons enable metrics-server
+kubectl top pods -n game-catalog
+```
+
+Проверка HPA:
+
+```bash
+kubectl get hpa -n game-catalog
+kubectl describe hpa backend -n game-catalog
+```
+
+Для нагрузочного тестирования backend можно использовать `hey`. Установить:
+
+```bash
+brew install hey
+```
+
+В отдельном терминале пробросить backend наружу для ручной проверки:
+
+```bash
+kubectl port-forward service/backend 3000:3000 -n game-catalog
+```
+
+Локальная нагрузка через `port-forward` подходит для быстрой проверки endpoint'а, но не является лучшим способом проверки HPA: port-forward к Service может работать через один выбранный pod, поэтому новые pod'ы не обязательно начнут получать этот же поток запросов.
+
+Для быстрой ручной проверки endpoint'а:
+
+```bash
+hey -z 2m -c 20 'http://localhost:3000/api/load/cpu?duration=500ms'
+```
+
+Для проверки HPA лучше запускать нагрузку внутри кластера на Kubernetes Service:
+
+```bash
+kubectl run backend-load-test -n game-catalog --rm -i --restart=Never \
+  --image=rakyll/hey -- \
+  -z 5m -c 50 'http://backend:3000/api/load/cpu?duration=500ms'
+```
+
+В другом терминале наблюдать масштабирование:
+
+```bash
+kubectl get hpa -n game-catalog -w
+kubectl get pods -n game-catalog -w
+```
+
+### Метрики Prometheus и Grafana Cloud
+
+Backend отдает Prometheus-метрики на:
+
+```text
+/metrics
+```
+
+Проверить локально внутри кластера:
+
+```bash
+kubectl port-forward service/backend 3000:3000 -n game-catalog
+curl http://localhost:3000/metrics
+```
+
+Основные метрики приложения:
+
+- `game_catalog_http_requests_total` — количество HTTP-запросов с labels `method`, `path`, `status`
+- `game_catalog_http_request_duration_seconds` — длительность HTTP-запросов
+- `game_catalog_http_requests_in_flight` — текущие активные HTTP-запросы
+- стандартные Go/process metrics: `go_*`, `process_*`
+
+В pod template backend добавлены scrape-аннотации:
+
+```yaml
+k8s.grafana.com/scrape: "true"
+k8s.grafana.com/job: game-catalog-backend
+k8s.grafana.com/metrics.path: /metrics
+k8s.grafana.com/metrics.portNumber: "3000"
+```
+
+Для Grafana Cloud удобнее всего установить Grafana Kubernetes Monitoring Helm chart через мастер настройки в Grafana Cloud. В нем нужно включить:
+
+- Kubernetes infrastructure metrics
+- Annotation autodiscovery для application metrics
+- Pod logs, если нужно видеть логи по pod'ам рядом с метриками
+
+После подключения в Grafana Cloud можно смотреть:
+
+- CPU/memory по pod'ам backend
+- количество pod'ов deployment/backend
+- HTTP-запросы по `pod`, `method`, `path`, `status`
+- latency по `game_catalog_http_request_duration_seconds`
+
+Полезные команды для диагностики:
+
+```bash
+kubectl get pods,svc,pvc -n game-catalog
+kubectl logs deployment/backend -n game-catalog
+kubectl logs deployment/frontend -n game-catalog
+kubectl logs deployment/postgres -n game-catalog
+```
+
+Удалить приложение из minikube:
+
+```bash
+kubectl delete namespace game-catalog
 ```
 
 ## Запуск frontend
