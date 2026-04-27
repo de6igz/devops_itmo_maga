@@ -8,22 +8,9 @@ on:
   pull_request:
 
 jobs:
-  backend-build:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26.1"
-      - run: go mod download
-      - run: go build ./...
-
   backend-test:
     runs-on: ubuntu-latest
-    needs: backend-build
+
     defaults:
       run:
         working-directory: backend
@@ -35,9 +22,25 @@ jobs:
       - run: go mod download
       - run: go test ./...
 
-  frontend-test:
+  backend-build:
     runs-on: ubuntu-latest
     needs: backend-test
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.1"
+      - run: go mod download
+      - run: go build ./...
+
+
+
+  frontend-test:
+    runs-on: ubuntu-latest
+    needs: backend-build
     defaults:
       run:
         working-directory: frontend
