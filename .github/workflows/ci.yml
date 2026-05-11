@@ -98,11 +98,40 @@ jobs:
           go mod download
           go test ./... -coverpkg=./... -coverprofile=coverage.out -covermode=atomic
 
+          COVERAGE=$(go tool cover -func=coverage.out | awk '/total:/ {gsub("%","",$3); print $3}')
+          echo "Backend coverage: ${COVERAGE}%"
+
+          MIN_COVERAGE=80
+          awk -v coverage="$COVERAGE" -v min="$MIN_COVERAGE" 'BEGIN {
+            if (coverage < min) {
+              printf "::error::Backend coverage %.2f%% is below required %.2f%%\n", coverage, min
+              exit 1
+            }
+          }'
+
       - name: Frontend coverage
         working-directory: frontend
         run: |
           npm ci
           npm run test:coverage
+
+          COVERED=$(grep -h '^LH:' coverage/lcov.info | cut -d: -f2 | awk '{sum += $1} END {print sum}')
+          TOTAL=$(grep -h '^LF:' coverage/lcov.info | cut -d: -f2 | awk '{sum += $1} END {print sum}')
+
+          COVERAGE=$(awk -v covered="$COVERED" -v total="$TOTAL" 'BEGIN {
+            if (total == 0) print 0;
+            else printf "%.2f", covered / total * 100;
+          }')
+
+          echo "Frontend line coverage: ${COVERAGE}%"
+
+          MIN_COVERAGE=80
+          awk -v coverage="$COVERAGE" -v min="$MIN_COVERAGE" 'BEGIN {
+            if (coverage < min) {
+              printf "::error::Frontend coverage %.2f%% is below required %.2f%%\n", coverage, min
+              exit 1
+            }
+          }'
 
       - name: Check SonarCloud project access
         env:
