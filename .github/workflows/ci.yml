@@ -124,7 +124,7 @@ jobs:
           fi
 
       - name: SonarCloud scan
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@v7
         with:
           args: >
             -Dsonar.projectKey=de6igz_devops_itmo_maga
