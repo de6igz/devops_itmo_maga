@@ -138,14 +138,12 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           TASK_URL=$(grep '^ceTaskUrl=' .scannerwork/report-task.txt | cut -d= -f2-)
-          ANALYSIS_ID=""
 
           for attempt in {1..30}; do
             CE_RESPONSE=$(curl -sS -u "${SONAR_TOKEN}:" "$TASK_URL")
             CE_STATUS=$(printf "%s" "$CE_RESPONSE" | jq -r '.task.status')
 
             if [ "$CE_STATUS" = "SUCCESS" ]; then
-              ANALYSIS_ID=$(printf "%s" "$CE_RESPONSE" | jq -r '.task.analysisId // empty')
               break
             fi
 
@@ -163,16 +161,14 @@ jobs:
             sleep 10
           done
 
-          if [ -n "$ANALYSIS_ID" ]; then
-            QG_RESPONSE=$(curl -sS -G -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status" \
-              --data-urlencode "analysisId=${ANALYSIS_ID}")
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
             QG_RESPONSE=$(curl -sS -G -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status" \
               --data-urlencode "projectKey=de6igz_devops_itmo_maga" \
               --data-urlencode "pullRequest=${{ github.event.pull_request.number }}")
           else
             QG_RESPONSE=$(curl -sS -G -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status" \
-              --data-urlencode "projectKey=de6igz_devops_itmo_maga")
+              --data-urlencode "projectKey=de6igz_devops_itmo_maga" \
+              --data-urlencode "branch=${GITHUB_REF_NAME}")
           fi
 
           QG_STATUS=$(printf "%s" "$QG_RESPONSE" | jq -r '.projectStatus.status')
