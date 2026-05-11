@@ -1,9 +1,11 @@
 backend/node_modules
 backend/.cache
+backend/coverage.out
 backend/blob/*
 !backend/blob/.gitkeep
 backend/data/*.db
 backend/data/*.sqlite
 frontend/node_modules
+frontend/coverage
 frontend/dist
 .DS_Store

@@ -219,6 +219,10 @@ kubectl get hpa -n game-catalog
 kubectl describe hpa backend -n game-catalog
 ```
 
+## Лабораторная работа N4
+
+Настройка SonarQube Cloud, Argo CD и Telegram-уведомлений описана в [docs/lab4.md](docs/lab4.md).
+
 Для нагрузочного тестирования backend можно использовать `hey`. Установить:
 
 ```bash
