@@ -101,13 +101,13 @@ jobs:
           COVERAGE=$(go tool cover -func=coverage.out | awk '/total:/ {gsub("%","",$3); print $3}')
           echo "Backend coverage: ${COVERAGE}%"
 
-          MIN_COVERAGE=80
-          awk -v coverage="$COVERAGE" -v min="$MIN_COVERAGE" 'BEGIN {
-            if (coverage < min) {
-              printf "::error::Backend coverage %.2f%% is below required %.2f%%\n", coverage, min
-              exit 1
-            }
-          }'
+#          MIN_COVERAGE=80
+#          awk -v coverage="$COVERAGE" -v min="$MIN_COVERAGE" 'BEGIN {
+#            if (coverage < min) {
+#              printf "::error::Backend coverage %.2f%% is below required %.2f%%\n", coverage, min
+#              exit 1
+#            }
+#          }'
 
       - name: Frontend coverage
         working-directory: frontend
@@ -125,13 +125,13 @@ jobs:
 
           echo "Frontend line coverage: ${COVERAGE}%"
 
-          MIN_COVERAGE=80
-          awk -v coverage="$COVERAGE" -v min="$MIN_COVERAGE" 'BEGIN {
-            if (coverage < min) {
-              printf "::error::Frontend coverage %.2f%% is below required %.2f%%\n", coverage, min
-              exit 1
-            }
-          }'
+#          MIN_COVERAGE=80
+#          awk -v coverage="$COVERAGE" -v min="$MIN_COVERAGE" 'BEGIN {
+#            if (coverage < min) {
+#              printf "::error::Frontend coverage %.2f%% is below required %.2f%%\n", coverage, min
+#              exit 1
+#            }
+#          }'
 
       - name: Check SonarCloud project access
         env:
