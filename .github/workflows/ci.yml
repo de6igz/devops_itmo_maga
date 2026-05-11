@@ -167,8 +167,7 @@ jobs:
               --data-urlencode "pullRequest=${{ github.event.pull_request.number }}")
           else
             QG_RESPONSE=$(curl -sS -G -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status" \
-              --data-urlencode "projectKey=de6igz_devops_itmo_maga" \
-              --data-urlencode "branch=${GITHUB_REF_NAME}")
+              --data-urlencode "projectKey=de6igz_devops_itmo_maga")
           fi
 
           QG_STATUS=$(printf "%s" "$QG_RESPONSE" | jq -r '.projectStatus.status')
