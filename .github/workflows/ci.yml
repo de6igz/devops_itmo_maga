@@ -129,10 +129,56 @@ jobs:
           args: >
             -Dsonar.projectKey=de6igz_devops_itmo_maga
             -Dsonar.organization=de6igz
-            -Dsonar.qualitygate.wait=true
-            -Dsonar.qualitygate.timeout=300
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Wait for SonarCloud quality gate
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          TASK_URL=$(grep '^ceTaskUrl=' .scannerwork/report-task.txt | cut -d= -f2-)
+
+          for attempt in {1..30}; do
+            CE_RESPONSE=$(curl -sS -u "${SONAR_TOKEN}:" "$TASK_URL")
+            CE_STATUS=$(printf "%s" "$CE_RESPONSE" | jq -r '.task.status')
+
+            if [ "$CE_STATUS" = "SUCCESS" ]; then
+              break
+            fi
+
+            if [ "$CE_STATUS" = "FAILED" ] || [ "$CE_STATUS" = "CANCELED" ]; then
+              echo "::error::SonarCloud background task finished with status ${CE_STATUS}."
+              echo "$CE_RESPONSE"
+              exit 1
+            fi
+
+            if [ "$attempt" = "30" ]; then
+              echo "::error::Timed out waiting for SonarCloud background task."
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            QG_RESPONSE=$(curl -sS -G -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status" \
+              --data-urlencode "projectKey=de6igz_devops_itmo_maga" \
+              --data-urlencode "pullRequest=${{ github.event.pull_request.number }}")
+          else
+            QG_RESPONSE=$(curl -sS -G -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status" \
+              --data-urlencode "projectKey=de6igz_devops_itmo_maga" \
+              --data-urlencode "branch=${GITHUB_REF_NAME}")
+          fi
+
+          QG_STATUS=$(printf "%s" "$QG_RESPONSE" | jq -r '.projectStatus.status')
+          echo "SonarCloud Quality Gate: ${QG_STATUS}"
+
+          if [ "$QG_STATUS" != "OK" ]; then
+            echo "::error::SonarCloud Quality Gate failed."
+            echo "$QG_RESPONSE"
+            exit 1
+          fi
 
   docker-publish:
     name: Docker publish (${{ matrix.service }})
