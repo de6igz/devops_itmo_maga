@@ -104,6 +104,25 @@ jobs:
           npm ci
           npm run test:coverage
 
+      - name: Check SonarCloud project access
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::SONAR_TOKEN is empty. Check repository Actions secrets."
+            exit 1
+          fi
+
+          RESPONSE=$(curl -sS -u "${SONAR_TOKEN}:" -w "\n%{http_code}" "https://sonarcloud.io/api/components/show?component=de6igz_devops_itmo_maga")
+          BODY=$(printf "%s" "$RESPONSE" | sed '$d')
+          STATUS=$(printf "%s" "$RESPONSE" | tail -n 1)
+
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::SonarCloud project de6igz_devops_itmo_maga is not accessible with SONAR_TOKEN. Regenerate the token in the SonarCloud account that has access to organization de6igz."
+            echo "$BODY"
+            exit 1
+          fi
+
       - name: SonarCloud scan
         uses: SonarSource/sonarcloud-github-action@master
         with:
