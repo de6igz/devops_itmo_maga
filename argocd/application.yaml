@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: game-catalog
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/de6igz/devops_itmo_maga.git
+    targetRevision: main
+    path: k8s
+    kustomize:
+      images:
+        - game-catalog-backend:local=ghcr.io/de6igz/devops_backend:latest
+        - game-catalog-frontend:local=ghcr.io/de6igz/devops_frontend:latest
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: game-catalog
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

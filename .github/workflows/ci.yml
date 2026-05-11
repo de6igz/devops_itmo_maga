@@ -4,12 +4,28 @@ on:
   push:
     branches:
       - main
-      - master
+      - lab-3
+      - lab-4
   pull_request:
 
 jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.1"
+      - run: go mod download
+      - run: go test ./... -coverpkg=./... -coverprofile=coverage.out -covermode=atomic
+
   backend-build:
     runs-on: ubuntu-latest
+    needs: backend-test
     defaults:
       run:
         working-directory: backend
@@ -21,23 +37,11 @@ jobs:
       - run: go mod download
       - run: go build ./...
 
-  backend-test:
-    runs-on: ubuntu-latest
-    needs: backend-build
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26.1"
-      - run: go mod download
-      - run: go test ./...
+
 
   frontend-test:
     runs-on: ubuntu-latest
-    needs: backend-test
+    needs: backend-build
     defaults:
       run:
         working-directory: frontend
@@ -67,12 +71,119 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  sonarqube:
+    name: SonarQube quality gate
+    runs-on: ubuntu-latest
+    needs:
+      - backend-build
+      - frontend-build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.1"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Backend coverage
+        working-directory: backend
+        run: |
+          go mod download
+          go test ./... -coverpkg=./... -coverprofile=coverage.out -covermode=atomic
+
+      - name: Frontend coverage
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run test:coverage
+
+      - name: Check SonarCloud project access
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::error::SONAR_TOKEN is empty. Check repository Actions secrets."
+            exit 1
+          fi
+
+          RESPONSE=$(curl -sS -u "${SONAR_TOKEN}:" -w "\n%{http_code}" "https://sonarcloud.io/api/components/show?component=de6igz_devops_itmo_maga")
+          BODY=$(printf "%s" "$RESPONSE" | sed '$d')
+          STATUS=$(printf "%s" "$RESPONSE" | tail -n 1)
+
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::SonarCloud project de6igz_devops_itmo_maga is not accessible with SONAR_TOKEN. Regenerate the token in the SonarCloud account that has access to organization de6igz."
+            echo "$BODY"
+            exit 1
+          fi
+
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        with:
+          args: >
+            -Dsonar.projectKey=de6igz_devops_itmo_maga
+            -Dsonar.organization=de6igz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Wait for SonarCloud quality gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          TASK_URL=$(grep '^ceTaskUrl=' .scannerwork/report-task.txt | cut -d= -f2-)
+
+          for attempt in {1..30}; do
+            CE_RESPONSE=$(curl -sS -u "${SONAR_TOKEN}:" "$TASK_URL")
+            CE_STATUS=$(printf "%s" "$CE_RESPONSE" | jq -r '.task.status')
+
+            if [ "$CE_STATUS" = "SUCCESS" ]; then
+              break
+            fi
+
+            if [ "$CE_STATUS" = "FAILED" ] || [ "$CE_STATUS" = "CANCELED" ]; then
+              echo "::error::SonarCloud background task finished with status ${CE_STATUS}."
+              echo "$CE_RESPONSE"
+              exit 1
+            fi
+
+            if [ "$attempt" = "30" ]; then
+              echo "::error::Timed out waiting for SonarCloud background task."
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            QG_RESPONSE=$(curl -sS -G -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status" \
+              --data-urlencode "projectKey=de6igz_devops_itmo_maga" \
+              --data-urlencode "pullRequest=${{ github.event.pull_request.number }}")
+          else
+            QG_RESPONSE=$(curl -sS -G -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status" \
+              --data-urlencode "projectKey=de6igz_devops_itmo_maga" \
+              --data-urlencode "branch=${GITHUB_REF_NAME}")
+          fi
+
+          QG_STATUS=$(printf "%s" "$QG_RESPONSE" | jq -r '.projectStatus.status')
+          echo "SonarCloud Quality Gate: ${QG_STATUS}"
+
+          if [ "$QG_STATUS" != "OK" ]; then
+            echo "::error::SonarCloud Quality Gate failed."
+            echo "$QG_RESPONSE"
+            exit 1
+          fi
+
   docker-publish:
     name: Docker publish (${{ matrix.service }})
     runs-on: ubuntu-latest
-    needs:
-      - backend-test
-      - frontend-build
+    needs: sonarqube
     if: github.event_name == 'push'
     permissions:
       contents: read
@@ -112,3 +223,34 @@ jobs:
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
+
+  telegram-notify:
+    name: Telegram notify
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - backend-test
+      - backend-build
+      - frontend-test
+      - frontend-build
+      - sonarqube
+      - docker-publish
+    steps:
+      - name: Send pipeline status
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PIPELINE_STATUS: ${{ contains(needs.*.result, 'failure') && 'failed' || contains(needs.*.result, 'cancelled') && 'cancelled' || 'success' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are not configured; skipping notification."
+            exit 0
+          fi
+
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          MESSAGE=$(printf "CI %s: %s@%s %s\n%s" "$PIPELINE_STATUS" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" "$SHORT_SHA" "$RUN_URL")
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${MESSAGE}"
