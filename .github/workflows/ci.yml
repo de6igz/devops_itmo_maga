@@ -104,8 +104,14 @@ jobs:
           npm ci
           npm run test:coverage
 
-      - name: SonarQube scan
-        uses: SonarSource/sonarqube-scan-action@v7
+      - name: SonarCloud scan
+        uses: SonarSource/sonarcloud-github-action@master
+        with:
+          args: >
+            -Dsonar.projectKey=de6igz_devops_itmo_maga
+            -Dsonar.organization=de6igz
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=300
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
