@@ -22,6 +22,28 @@ jobs:
           go-version: "1.26.1"
       - run: go mod download
       - run: go test ./... -coverpkg=./... -coverprofile=coverage.out -covermode=atomic
+      - name: Send Telegram job status
+        if: always()
+        continue-on-error: true
+        working-directory: .
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JOB_NAME: Backend test
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are not configured; skipping notification."
+            exit 0
+          fi
+
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          MESSAGE=$(printf "CI job %s: %s\n%s@%s %s\n%s" "$JOB_NAME" "$JOB_STATUS" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" "$SHORT_SHA" "$RUN_URL")
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${MESSAGE}"
 
   backend-build:
     runs-on: ubuntu-latest
@@ -36,6 +58,28 @@ jobs:
           go-version: "1.26.1"
       - run: go mod download
       - run: go build ./...
+      - name: Send Telegram job status
+        if: always()
+        continue-on-error: true
+        working-directory: .
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JOB_NAME: Backend build
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are not configured; skipping notification."
+            exit 0
+          fi
+
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          MESSAGE=$(printf "CI job %s: %s\n%s@%s %s\n%s" "$JOB_NAME" "$JOB_STATUS" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" "$SHORT_SHA" "$RUN_URL")
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${MESSAGE}"
 
 
 
@@ -54,6 +98,28 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm test
+      - name: Send Telegram job status
+        if: always()
+        continue-on-error: true
+        working-directory: .
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JOB_NAME: Frontend test
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are not configured; skipping notification."
+            exit 0
+          fi
+
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          MESSAGE=$(printf "CI job %s: %s\n%s@%s %s\n%s" "$JOB_NAME" "$JOB_STATUS" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" "$SHORT_SHA" "$RUN_URL")
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${MESSAGE}"
 
   frontend-build:
     runs-on: ubuntu-latest
@@ -70,6 +136,28 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build
+      - name: Send Telegram job status
+        if: always()
+        continue-on-error: true
+        working-directory: .
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JOB_NAME: Frontend build
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are not configured; skipping notification."
+            exit 0
+          fi
+
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          MESSAGE=$(printf "CI job %s: %s\n%s@%s %s\n%s" "$JOB_NAME" "$JOB_STATUS" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" "$SHORT_SHA" "$RUN_URL")
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${MESSAGE}"
 
   sonarqube:
     name: SonarQube quality gate
@@ -208,6 +296,27 @@ jobs:
             echo "$QG_RESPONSE"
             exit 1
           fi
+      - name: Send Telegram job status
+        if: always()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JOB_NAME: SonarQube quality gate
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are not configured; skipping notification."
+            exit 0
+          fi
+
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          MESSAGE=$(printf "CI job %s: %s\n%s@%s %s\n%s" "$JOB_NAME" "$JOB_STATUS" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" "$SHORT_SHA" "$RUN_URL")
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${MESSAGE}"
 
   docker-publish:
     name: Docker publish (${{ matrix.service }})
@@ -255,24 +364,14 @@ jobs:
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
-
-  telegram-notify:
-    name: Telegram notify
-    runs-on: ubuntu-latest
-    if: always()
-    needs:
-      - backend-test
-      - backend-build
-      - frontend-test
-      - frontend-build
-      - sonarqube
-      - docker-publish
-    steps:
-      - name: Send pipeline status
+      - name: Send Telegram job status
+        if: always()
+        continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PIPELINE_STATUS: ${{ contains(needs.*.result, 'failure') && 'failed' || contains(needs.*.result, 'cancelled') && 'cancelled' || 'success' }}
+          JOB_NAME: Docker publish (${{ matrix.service }})
+          JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
@@ -281,7 +380,7 @@ jobs:
           fi
 
           SHORT_SHA="${GITHUB_SHA:0:7}"
-          MESSAGE=$(printf "CI %s: %s@%s %s\n%s" "$PIPELINE_STATUS" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" "$SHORT_SHA" "$RUN_URL")
+          MESSAGE=$(printf "CI job %s: %s\n%s@%s %s\n%s" "$JOB_NAME" "$JOB_STATUS" "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" "$SHORT_SHA" "$RUN_URL")
 
           curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d chat_id="${TELEGRAM_CHAT_ID}" \
