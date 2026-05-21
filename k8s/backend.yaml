@@ -33,7 +33,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: ghcr.io/de6igz/devops_backend:latest
+          image: ghcr.io/de6igz/devops_backend:42e18ace60e698b459cc0109b6c6b7ce4f3c7e9a
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
