@@ -33,7 +33,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: game-catalog-backend:local
+          image: ghcr.io/de6igz/devops_backend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000

@@ -9,10 +9,6 @@ spec:
     repoURL: https://github.com/de6igz/devops_itmo_maga.git
     targetRevision: main
     path: k8s
-    kustomize:
-      images:
-        - game-catalog-backend:local=ghcr.io/de6igz/devops_backend:latest
-        - game-catalog-frontend:local=ghcr.io/de6igz/devops_frontend:latest
   destination:
     server: https://kubernetes.default.svc
     namespace: game-catalog
